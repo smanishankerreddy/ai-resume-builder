@@ -1,5 +1,105 @@
 import { useMemo, useState } from 'react'
+import * as pdfjsLib from 'pdfjs-dist/build/pdf'
 import './App.css'
+import { scoreResume } from './firebaseService'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+
+const weights = {
+  experience: 15,
+  projects: 15,
+  skills: 15,
+  education: 10,
+  imp: 10,
+  summary: 5,
+  contact: 5,
+  tools: 5,
+  softSkills: 5,
+  internship: 3,
+  certifications: 3,
+  achievements: 3,
+  leadership: 2,
+  languages: 2,
+  extracurricular: 2
+};
+
+const resumeKeywords = {
+  education: [
+    ["education", "academic", "coursework"],
+    ["degree", "bachelor", "b.tech", "bsc"],
+    ["master", "m.tech", "msc"],
+    ["phd"],
+    ["university", "college"],
+    ["cgpa", "gpa"]
+  ],
+  projects: [
+    ["project", "projects", "application", "system", "web app", "mobile app"],
+    ["developed", "built", "implemented", "designed", "created"]
+  ],
+  skills: [
+    ["skills", "technical skills", "tools", "technologies"],
+    ["react", "node", "python", "java", "c", "c++", "javascript", "sql", "html", "css", "git"]
+  ],
+  experience: [
+    ["experience", "work experience"],
+    ["job", "role"],
+    ["company", "organization"],
+    ["responsibilities"]
+  ],
+  internship: [
+    ["internship", "intern", "trainee", "training"]
+  ],
+  imp: [
+    ["gmail", "email", "@gmail.com", "@outlook.com"],
+    ["linkedin", "linkedin.com"],
+    ["github", "github.com"],
+    ["leetcode", "leetcode.com", "hackerrank", "hackerrank.com", "codechef", "codechef.com"],
+    ["portfolio", "portfolio website", "behance", "dribbble", "kaggle", "medium", "dev.to"]
+  ],
+  certifications: [
+    ["certification", "certified", "course"],
+    ["udemy", "coursera", "nptel", "google certification", "aws certification"]
+  ],
+  achievements: [
+    ["achievement", "award", "winner", "rank", "scholarship", "medal", "recognition", "top performer"]
+  ],
+  leadership: [
+    ["leader", "team lead", "managed", "organized", "coordinated", "headed"]
+  ],
+  extracurricular: [
+    ["extracurricular", "club", "event", "volunteer", "community", "member"]
+  ],
+  softSkills: [
+    ["communication", "teamwork", "problem solving", "adaptability", "critical thinking", "time management", "collaboration"]
+  ],
+  tools: [
+    ["excel", "power bi", "tableau", "figma", "docker", "aws", "azure", "firebase"]
+  ],
+  languages: [
+    ["english", "hindi", "telugu"],
+    ["fluent", "native", "basic"]
+  ],
+  summary: [
+    ["summary", "objective", "profile", "career objective", "about me"]
+  ],
+  contact: [
+    ["phone", "mobile", "contact"],
+    ["email"],
+    ["address"]
+  ]
+};
+
+// Top ATS keywords
+const atsKeywords = [
+  "project","skills","experience","education","internship","certification","achievement","portfolio","linkedin","github",
+  "react","node","javascript","python","java","sql","html","css","mongodb","express","api","rest api",
+  "machine learning","data analysis","pandas","numpy","power bi","tableau","excel","statistics",
+  "aws","azure","docker","kubernetes","firebase","ci/cd","deployment",
+  "communication","teamwork","leadership","problem solving","critical thinking",
+  "developed","designed","implemented","built","created","optimized","improved","analyzed",
+  "summary","objective","profile","leetcode","hackerrank","codechef","kaggle",
+  "full stack","frontend","backend","web development","mobile app","software engineer"
+];
 
 function App() {
   const [page, setPage] = useState('home')
@@ -53,6 +153,8 @@ function App() {
   })
   const [uploadedFile, setUploadedFile] = useState(null)
   const [analysisResult, setAnalysisResult] = useState(null)
+  const [analyzing, setAnalyzing] = useState(null)
+  const [analysisError, setAnalysisError] = useState(null)
 
   const badgeClass =
     'inline-block rounded-full px-3 py-1 text-xs font-semibold text-white bg-pink-500/90'
@@ -201,48 +303,242 @@ function App() {
     }))
   }
 
+
+
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
     if (file) {
       const allowedTypes = [
         'application/pdf',
-        'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       ]
       if (allowedTypes.includes(file.type)) {
         setUploadedFile(file)
         setAnalysisResult(null)
       } else {
-        alert('Please upload a PDF or Word document (.pdf, .doc, .docx)')
+        alert('Please upload a PDF or DOCX document (.pdf, .docx)')
       }
     }
   }
 
-  const analyzeResume = () => {
+  const extractTextFromPDF = async (file) => {
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      reader.onload = async () => {
+        const typedArray = new Uint8Array(reader.result);
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = content.items.map(item => item.str);
+          fullText += strings.join(" ") + " ";
+        }
+        resolve(fullText);
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const normalizeText = (text) => {
+    return text.toLowerCase().replace(/[^a-z0-9\s@.]/g, " ");
+  };
+
+  const runMagicFormula = async () => {
     if (!uploadedFile) {
-      alert('Please upload a file first')
+      setAnalysisError('Please upload a file first');
+      return;
+    }
+
+    setAnalyzing('magic');
+    setAnalysisError(null);
+
+    try {
+      let text = "";
+      if (uploadedFile.type === 'application/pdf') {
+        text = await extractTextFromPDF(uploadedFile);
+      } else {
+        throw new Error("Our Magic Formula currently only supports PDFs for local parsing. Please upload a PDF or use Deep AI Analysis.");
+      }
+
+      const normalizedText = normalizeText(text);
+      const rawTextLower = text.toLowerCase();
+      let totalScore = 0;
+      let maxScore = 0;
+      let result = {};
+
+      for (let category in resumeKeywords) {
+        const groups = resumeKeywords[category];
+        let found = [];
+        let missing = [];
+        let groupMatches = 0;
+
+        groups.forEach(group => {
+          let groupMatched = false;
+          let matchedWord = null;
+
+          for (let word of group) {
+            const lowerWord = word.toLowerCase();
+            let isMatch = false;
+
+            // Dedicated pattern checks for special cases
+            if (['email', 'gmail'].includes(lowerWord)) {
+              isMatch = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/.test(normalizedText);
+            } else if (lowerWord.startsWith('@')) {
+              const escapedDomain = lowerWord.replace(/\./g, '\\.');
+              const regex = new RegExp(`[a-z0-9._%+-]+${escapedDomain}`);
+              isMatch = regex.test(normalizedText);
+            } else if (['linkedin', 'linkedin.com'].includes(lowerWord)) {
+              isMatch = /linkedin\.com/.test(rawTextLower) || /\blinkedin\b/.test(normalizedText);
+            } else if (['github', 'github.com'].includes(lowerWord)) {
+              isMatch = /github\.com/.test(rawTextLower) || /\bgithub\b/.test(normalizedText);
+            } else if (['leetcode', 'leetcode.com'].includes(lowerWord)) {
+              isMatch = /leetcode\.com/.test(rawTextLower) || /\bleetcode\b/.test(normalizedText);
+            } else if (['hackerrank', 'hackerrank.com'].includes(lowerWord)) {
+              isMatch = /hackerrank\.com/.test(rawTextLower) || /\bhackerrank\b/.test(normalizedText);
+            } else if (['codechef', 'codechef.com'].includes(lowerWord)) {
+              isMatch = /codechef\.com/.test(rawTextLower) || /\bcodechef\b/.test(normalizedText);
+            } else if (['portfolio', 'portfolio website'].includes(lowerWord)) {
+              isMatch = /(https?:\/\/)?(www\.)?[a-z0-9-]+\.(com|me|io|dev|net|org)/.test(rawTextLower) || /\bportfolio\b/.test(normalizedText);
+            } else {
+              // Regex matching with word boundaries
+              const escapedWord = lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(`\\b${escapedWord}\\b`);
+              
+              // Fallback inclusion check to handle variations in word forms
+              isMatch = regex.test(normalizedText) || normalizedText.includes(lowerWord);
+            }
+
+            if (isMatch) {
+              groupMatched = true;
+              matchedWord = word;
+              break; // Stop looking in this group once one requirement variation is met
+            }
+          }
+
+          if (groupMatched) {
+            groupMatches++;
+            found.push(matchedWord);
+          } else {
+            // Default to the first word in the group as the representative missing keyword
+            missing.push(group[0]);
+          }
+        });
+
+        let score = (groupMatches / groups.length) * 100;
+        result[category] = { found, missing, score: Math.round(score) };
+
+        const weight = weights[category] || 1; // Default to a lightweight of 1 if not explicitly in weights
+        totalScore += (score * weight);
+        maxScore += (100 * weight);
+      }
+
+      const finalScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+
+      setAnalysisResult({
+        type: 'magic',
+        score: finalScore,
+        fileName: uploadedFile.name,
+        details: result
+      });
+    } catch (err) {
+      setAnalysisError(`Magic Formula failed: ${err.message}`);
+    } finally {
+      setAnalyzing(null);
+    }
+  };
+
+  const runAIAnalysis = async () => {
+    if (!uploadedFile) {
+      setAnalysisError('Please upload a file first')
       return
     }
 
-    // Placeholder analysis (actual parsing happens in Phase 2 with Firebase)
-    setAnalysisResult({
-      score: 78,
-      fileName: uploadedFile.name,
-      pros: [
-        'Professional format detected',
-        'Good use of action keywords',
-        'Clear section structure',
-      ],
-      cons: [
-        'Could quantify achievements better',
-        'Missing some technical keywords',
-      ],
-      suggestions: [
-        'Add metrics to bullet points (e.g., "increased by X%")',
-        'Include more technical skills relevant to target role',
-        'Consider adding a professional summary',
-      ],
-    })
+    setAnalyzing('ai')
+    setAnalysisError(null)
+
+    const dataUrlToBase64 = (dataUrl) => {
+      const marker = ';base64,'
+      const index = dataUrl.indexOf(marker)
+      return index >= 0 ? dataUrl.slice(index + marker.length) : ''
+    }
+
+    try {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const dataUrl = e.target.result
+          const base64Data = dataUrlToBase64(dataUrl)
+          const resumeFile = {
+            fileName: uploadedFile.name,
+            mimeType: uploadedFile.type,
+            base64Data,
+          }
+
+          const analysis = await scoreResume({ resumeFile })
+
+          const parseAnalysis = (data) => {
+            console.log("Analysis payload from backend:", data);
+
+            if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+               return {
+                 score: data.score ?? 75,
+                 strengths: Array.isArray(data.strengths) ? data.strengths : (Array.isArray(data.pros) ? data.pros : []),
+                 weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : (Array.isArray(data.cons) ? data.cons : []),
+                 suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
+               };
+            }
+
+            return {
+              score: 75,
+              strengths: ["Could not fetch specific strengths."],
+              weaknesses: ["Formatting or parsing issue. Please try another PDF."],
+              suggestions: ["Check if your file is a valid PDF/Word file without password protection."]
+            };
+          }
+
+          const parsed = parseAnalysis(analysis)
+
+          setAnalysisResult({
+            type: 'ai',
+            score: parsed.score,
+            fileName: uploadedFile.name,
+            strengths: parsed.strengths,
+            weaknesses: parsed.weaknesses,
+            suggestions: parsed.suggestions,
+          })
+        } catch (err) {
+          const code = err?.code ? ` (${err.code})` : ''
+          const detailsJson = err?.details ? JSON.stringify(err.details) : ''
+          const detailsSnippet = detailsJson ? ` Details: ${detailsJson.slice(0, 250)}` : ''
+          const customDataJson = err?.customData ? JSON.stringify(err.customData) : ''
+          const customDataSnippet = customDataJson ? ` CustomData: ${customDataJson.slice(0, 250)}` : ''
+          const rawSummary = JSON.stringify(
+            {
+              message: err?.message,
+              code: err?.code,
+              detailsType: err?.details ? typeof err.details : null,
+              details: err?.details,
+              customData: err?.customData,
+            },
+            null,
+            0
+          )
+          setAnalysisError(
+            `Analysis failed${code}: ${err?.message || String(err)}${detailsSnippet}${customDataSnippet}` +
+              (detailsJson ? '' : ` (Raw: ${rawSummary.slice(0, 220)})`)
+          )
+          console.error('Analysis error:', err)
+        } finally {
+          setAnalyzing(null)
+        }
+      }
+      reader.readAsDataURL(uploadedFile)
+    } catch (err) {
+      setAnalysisError(`Error reading file: ${err.message}`)
+      setAnalyzing(null)
+    }
   }
 
   return (
@@ -635,6 +931,14 @@ function App() {
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Analyze Resume</h2>
                 <p className="mt-1 text-xs sm:text-sm text-slate-500">Upload your resume in PDF or Word format.</p>
 
+                {analysisError && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-sm font-semibold text-red-700">
+                      ✗ {analysisError}
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-4 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center">
                   <label className="flex flex-col items-center gap-2 cursor-pointer">
                     <div className="text-3xl">📎</div>
@@ -642,7 +946,7 @@ function App() {
                     <span className="text-xs text-slate-500">or drag and drop</span>
                     <input
                       type="file"
-                      accept=".pdf,.doc,.docx"
+                      accept=".pdf,.docx"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
@@ -663,13 +967,30 @@ function App() {
                   </div>
                 )}
 
-                <button
-                  onClick={analyzeResume}
-                  disabled={!uploadedFile}
-                  className="mt-4 w-full rounded-lg bg-pink-500 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition"
-                >
-                  Analyze Resume
-                </button>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    onClick={runMagicFormula}
+                    disabled={!uploadedFile || analyzing !== null}
+                    className="w-full rounded-lg bg-pink-500 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {analyzing === 'magic' ? (
+                      <><span className="animate-spin">⏳</span>Analyzing...</>
+                    ) : (
+                      '✨ Our Magic Formula (Fast & Accurate)'
+                    )}
+                  </button>
+                  <button
+                    onClick={runAIAnalysis}
+                    disabled={!uploadedFile || analyzing !== null}
+                    className="w-full rounded-lg border border-pink-500 bg-white px-4 py-2 text-sm font-semibold text-pink-600 hover:bg-pink-50 disabled:border-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {analyzing === 'ai' ? (
+                      <><span className="animate-spin">⏳</span>Calling AI...</>
+                    ) : (
+                      '🤖 Deep AI Analysis'
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -682,33 +1003,72 @@ function App() {
                     <div>
                       <span className="font-semibold">File:</span> {analysisResult.fileName}
                     </div>
-                    <div>
-                      <span className="font-semibold">Score:</span> {analysisResult.score}/100
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-semibold">Score:</span>
+                      <span className="text-lg sm:text-xl font-bold text-pink-500">{analysisResult.score}</span>
+                      <span className="text-slate-500">/100</span>
                     </div>
-                    <div>
-                      <span className="font-semibold">Pros:</span>
-                      <ul className="mt-1 list-disc pl-5">
-                        {analysisResult.pros.map((pro, idx) => (
-                          <li key={`pro-${idx}`}>{pro}</li>
-                        ))}
-                      </ul>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-pink-500 to-blue-500 h-2 rounded-full"
+                        style={{ width: `${analysisResult.score}%` }}
+                      />
                     </div>
-                    <div>
-                      <span className="font-semibold">Areas to Improve:</span>
-                      <ul className="mt-1 list-disc pl-5">
-                        {analysisResult.cons.map((con, idx) => (
-                          <li key={`con-${idx}`}>{con}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <span className="font-semibold">Recommendations:</span>
-                      <ul className="mt-1 list-disc pl-5">
-                        {analysisResult.suggestions.map((suggestion, idx) => (
-                          <li key={`suggestion-${idx}`}>{suggestion}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    
+                    {analysisResult.type === 'ai' && (
+                      <>
+                        <div>
+                          <span className="font-semibold text-green-600">✓ Strengths:</span>
+                          <ul className="mt-1 list-disc pl-5">
+                            {analysisResult.strengths?.map((pro, idx) => (
+                              <li key={`pro-${idx}`}>{pro}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-orange-600">⚠ Areas to Improve:</span>
+                          <ul className="mt-1 list-disc pl-5">
+                            {analysisResult.weaknesses?.map((con, idx) => (
+                              <li key={`con-${idx}`}>{con}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-blue-600">💡 AI Suggestions:</span>
+                          <ul className="mt-1 list-disc pl-5">
+                            {analysisResult.suggestions?.map((suggestion, idx) => (
+                              <li key={`suggestion-${idx}`}>{suggestion}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </>
+                    )}
+
+                    {analysisResult.type === 'magic' && (
+                      <div className="mt-4 space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                        {Object.keys(analysisResult.details).map(cat => {
+                          const catData = analysisResult.details[cat];
+                          return (
+                            <div key={cat} className="rounded border border-slate-200 p-3 bg-slate-50">
+                              <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-bold text-slate-800 capitalize">{cat}</h3>
+                                <span className="text-xs font-semibold bg-white border border-slate-200 px-2 py-1 rounded">
+                                  Coverage: {catData.score}%
+                                </span>
+                              </div>
+                              <div className="mt-2 text-xs">
+                                <p className="text-green-600 font-medium break-words">
+                                  ✅ Found: {catData.found.length > 0 ? catData.found.join(", ") : "None"}
+                                </p>
+                                <p className="text-red-500 font-medium break-words mt-1">
+                                  ❌ Missing: {catData.missing.length > 0 ? catData.missing.join(", ") : "None"}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
