@@ -898,7 +898,7 @@ function App() {
                       disabled={savingResume}
                       className="rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition flex items-center gap-2 disabled:bg-slate-300"
                     >
-                      <span>💾</span> {savingResume ? 'Saving...' : 'Save to Cloud'}
+                      <span>💾</span> {savingResume ? 'Saving...' : ' Cloud'}
                     </button>
                     <button
                       onClick={() => {
