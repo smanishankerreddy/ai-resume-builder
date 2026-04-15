@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import * as pdfjsLib from 'pdfjs-dist/build/pdf'
 import './App.css'
-import { scoreResume } from './firebaseService'
+import { scoreResume, fetchUserResumes, saveResumeToCloud } from './firebaseService'
+import { useAuth } from './context/AuthContext'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
@@ -155,6 +156,47 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState(null)
   const [analyzing, setAnalyzing] = useState(null)
   const [analysisError, setAnalysisError] = useState(null)
+
+  const { user, loginWithGoogle, logout } = useAuth()
+  const [savedResumes, setSavedResumes] = useState([])
+  const [loadingResumes, setLoadingResumes] = useState(false)
+  const [savingResume, setSavingResume] = useState(false)
+
+  useEffect(() => {
+    if (user && page === 'my-resumes') {
+      loadResumes()
+    }
+  }, [user, page])
+
+  const loadResumes = async () => {
+    setLoadingResumes(true)
+    try {
+      const resumes = await fetchUserResumes(user.uid)
+      setSavedResumes(resumes)
+    } catch (err) {
+      console.error("Error loading resumes", err)
+    } finally {
+      setLoadingResumes(false)
+    }
+  }
+
+  const handleSaveResume = async () => {
+    if (!user) {
+      alert("Please login to save your resume!")
+      return
+    }
+    setSavingResume(true)
+    try {
+      const resumeId = resumeData.personal.name.replace(/\s+/g, '_').toLowerCase() || Date.now().toString()
+      await saveResumeToCloud(user.uid, resumeId, resumeData)
+      alert("Resume saved successfully!")
+    } catch (error) {
+      console.error("Error saving resume", error)
+      alert("Failed to save. Try again.")
+    } finally {
+      setSavingResume(false)
+    }
+  }
 
   const badgeClass =
     'inline-block rounded-full px-3 py-1 text-xs font-semibold text-white bg-pink-500/90'
@@ -563,9 +605,16 @@ function App() {
               })}
             </nav>
           </div>
-          <button className="rounded-md bg-white px-3 py-1 text-xs sm:text-sm font-semibold text-pink-600 hover:bg-pink-50 whitespace-nowrap">
-            Login
-          </button>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <span className="text-xs sm:text-sm font-medium text-pink-700 hidden sm:inline">Welcome, {user.displayName?.split(' ')[0] || 'User'}</span>
+                <button onClick={logout} className="rounded-md border border-pink-200 bg-white px-3 py-1 text-xs sm:text-sm font-semibold text-pink-600 hover:bg-pink-50 whitespace-nowrap">Logout</button>
+              </>
+            ) : (
+              <button onClick={loginWithGoogle} className="rounded-md bg-white px-3 py-1 text-xs sm:text-sm font-semibold text-pink-600 hover:bg-pink-50 whitespace-nowrap">Login</button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -845,6 +894,13 @@ function App() {
                   </div>
                   <div className="flex gap-2">
                     <button
+                      onClick={handleSaveResume}
+                      disabled={savingResume}
+                      className="rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition flex items-center gap-2 disabled:bg-slate-300"
+                    >
+                      <span>💾</span> {savingResume ? 'Saving...' : 'Save to Cloud'}
+                    </button>
+                    <button
                       onClick={() => {
                         // Basic PDF download using browser print
                         const printWindow = window.open('', '_blank')
@@ -1077,9 +1133,34 @@ function App() {
         )}
 
         {page === 'my-resumes' && (
-          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-800">My Resumes</h2>
-            <p className="mt-2 text-sm text-slate-500">Coming soon: save, load, and manage your resumes.</p>
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6">My Resumes</h2>
+            {!user ? (
+              <div className="rounded-2xl bg-white p-10 shadow-sm ring-1 ring-slate-200 text-center">
+                <p className="text-slate-600 mb-4">Please log in to view and save your resumes.</p>
+                <button onClick={loginWithGoogle} className="rounded-xl bg-pink-500 px-6 py-2 text-sm font-semibold text-white shadow hover:bg-pink-600 transition">Login with Google</button>
+              </div>
+            ) : loadingResumes ? (
+              <div className="flex justify-center p-10"><span className="text-slate-500">Loading your resumes...</span></div>
+            ) : savedResumes.length === 0 ? (
+               <div className="rounded-2xl bg-white p-10 shadow-sm ring-1 ring-slate-200 text-center">
+                <p className="text-slate-600">You don't have any saved resumes yet. Go to 'Build Resume' to create one!</p>
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {savedResumes.map(resume => (
+                   <div key={resume.id} 
+                        onClick={() => { setResumeData(resume); setPage('build'); }}
+                        className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition cursor-pointer flex flex-col justify-between">
+                     <div>
+                       <h3 className="font-bold text-lg text-slate-800">{resume.personal?.name || 'Untitled Resume'}</h3>
+                       <p className="text-sm text-slate-500 mt-1">{resume.personal?.summary?.substring(0, 50) || 'No summary'}...</p>
+                     </div>
+                     <p className="text-xs text-slate-400 mt-4 border-t pt-2">Updated: {new Date(resume.updatedAt).toLocaleDateString()}</p>
+                   </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
       </main>

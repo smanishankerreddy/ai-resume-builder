@@ -1,22 +1,29 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
+import { getFirestore } from 'firebase/firestore'
+import { getAnalytics } from 'firebase/analytics'
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: 'AIzaSyBMhEcoUaxp09IL5I1mKzwCq1B4PkBDiQI',
-  authDomain: 'ai-resume-builder-8217a.firebaseapp.com',
-  projectId: 'ai-resume-builder-8217a',
-  storageBucket: 'ai-resume-builder-8217a.appspot.com',
-  messagingSenderId: '1058739648733',
-  appId: '1:1058739648733:web:8f3c0f2b8a7e5e5e5e5'
+  apiKey: "AIzaSyDfyfUnKtPY_BKfRSMWgqk1EbjS0qryIRY",
+  authDomain: "ai-resume-builder-8217a.firebaseapp.com",
+  projectId: "ai-resume-builder-8217a",
+  storageBucket: "ai-resume-builder-8217a.firebasestorage.app",
+  messagingSenderId: "930837035727",
+  appId: "1:930837035727:web:45d9dbc1bf60f62e55d5ba",
+  measurementId: "G-N3HX2L6VLS"
 }
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app)
+
+// Initialize Firestore
+export const db = getFirestore(app)
 
 // Initialize Cloud Functions
 // Use explicit region to avoid callable endpoint mismatches.
