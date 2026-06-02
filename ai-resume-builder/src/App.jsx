@@ -92,14 +92,14 @@ const resumeKeywords = {
 
 // Top ATS keywords
 const atsKeywords = [
-  "project","skills","experience","education","internship","certification","achievement","portfolio","linkedin","github",
-  "react","node","javascript","python","java","sql","html","css","mongodb","express","api","rest api",
-  "machine learning","data analysis","pandas","numpy","power bi","tableau","excel","statistics",
-  "aws","azure","docker","kubernetes","firebase","ci/cd","deployment",
-  "communication","teamwork","leadership","problem solving","critical thinking",
-  "developed","designed","implemented","built","created","optimized","improved","analyzed",
-  "summary","objective","profile","leetcode","hackerrank","codechef","kaggle",
-  "full stack","frontend","backend","web development","mobile app","software engineer"
+  "project", "skills", "experience", "education", "internship", "certification", "achievement", "portfolio", "linkedin", "github",
+  "react", "node", "javascript", "python", "java", "sql", "html", "css", "mongodb", "express", "api", "rest api",
+  "machine learning", "data analysis", "pandas", "numpy", "power bi", "tableau", "excel", "statistics",
+  "aws", "azure", "docker", "kubernetes", "firebase", "ci/cd", "deployment",
+  "communication", "teamwork", "leadership", "problem solving", "critical thinking",
+  "developed", "designed", "implemented", "built", "created", "optimized", "improved", "analyzed",
+  "summary", "objective", "profile", "leetcode", "hackerrank", "codechef", "kaggle",
+  "full stack", "frontend", "backend", "web development", "mobile app", "software engineer"
 ];
 
 function App() {
@@ -447,7 +447,7 @@ function App() {
               // Regex matching with word boundaries
               const escapedWord = lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               const regex = new RegExp(`\\b${escapedWord}\\b`);
-              
+
               // Fallback inclusion check to handle variations in word forms
               isMatch = regex.test(normalizedText) || normalizedText.includes(lowerWord);
             }
@@ -524,12 +524,12 @@ function App() {
             console.log("Analysis payload from backend:", data);
 
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-               return {
-                 score: data.score ?? 75,
-                 strengths: Array.isArray(data.strengths) ? data.strengths : (Array.isArray(data.pros) ? data.pros : []),
-                 weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : (Array.isArray(data.cons) ? data.cons : []),
-                 suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
-               };
+              return {
+                score: data.score ?? 75,
+                strengths: Array.isArray(data.strengths) ? data.strengths : (Array.isArray(data.pros) ? data.pros : []),
+                weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : (Array.isArray(data.cons) ? data.cons : []),
+                suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
+              };
             }
 
             return {
@@ -569,7 +569,7 @@ function App() {
           )
           setAnalysisError(
             `Analysis failed${code}: ${err?.message || String(err)}${detailsSnippet}${customDataSnippet}` +
-              (detailsJson ? '' : ` (Raw: ${rawSummary.slice(0, 220)})`)
+            (detailsJson ? '' : ` (Raw: ${rawSummary.slice(0, 220)})`)
           )
           console.error('Analysis error:', err)
         } finally {
@@ -898,7 +898,7 @@ function App() {
                       disabled={savingResume}
                       className="rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition flex items-center gap-2 disabled:bg-slate-300"
                     >
-                      <span>💾</span> {savingResume ? 'Saving...' : 'Save to Cloud'}
+                      <span>💾</span> {savingResume ? 'Saving...' : ' Cloud'}
                     </button>
                     <button
                       onClick={() => {
@@ -1070,7 +1070,7 @@ function App() {
                         style={{ width: `${analysisResult.score}%` }}
                       />
                     </div>
-                    
+
                     {analysisResult.type === 'ai' && (
                       <>
                         <div>
@@ -1143,21 +1143,21 @@ function App() {
             ) : loadingResumes ? (
               <div className="flex justify-center p-10"><span className="text-slate-500">Loading your resumes...</span></div>
             ) : savedResumes.length === 0 ? (
-               <div className="rounded-2xl bg-white p-10 shadow-sm ring-1 ring-slate-200 text-center">
+              <div className="rounded-2xl bg-white p-10 shadow-sm ring-1 ring-slate-200 text-center">
                 <p className="text-slate-600">You don't have any saved resumes yet. Go to 'Build Resume' to create one!</p>
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {savedResumes.map(resume => (
-                   <div key={resume.id} 
-                        onClick={() => { setResumeData(resume); setPage('build'); }}
-                        className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition cursor-pointer flex flex-col justify-between">
-                     <div>
-                       <h3 className="font-bold text-lg text-slate-800">{resume.personal?.name || 'Untitled Resume'}</h3>
-                       <p className="text-sm text-slate-500 mt-1">{resume.personal?.summary?.substring(0, 50) || 'No summary'}...</p>
-                     </div>
-                     <p className="text-xs text-slate-400 mt-4 border-t pt-2">Updated: {new Date(resume.updatedAt).toLocaleDateString()}</p>
-                   </div>
+                  <div key={resume.id}
+                    onClick={() => { setResumeData(resume); setPage('build'); }}
+                    className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition cursor-pointer flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-800">{resume.personal?.name || 'Untitled Resume'}</h3>
+                      <p className="text-sm text-slate-500 mt-1">{resume.personal?.summary?.substring(0, 50) || 'No summary'}...</p>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-4 border-t pt-2">Updated: {new Date(resume.updatedAt).toLocaleDateString()}</p>
+                  </div>
                 ))}
               </div>
             )}
